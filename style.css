@@ -1,0 +1,17 @@
+body { 
+  margin-left: 1em; 
+  margin-right: 1em; 
+  font-family: arial, helvetica, geneva, sans-serif;
+}
+
+h1, h2, h3, h4 { margin-left: 0em; }
+
+textarea, pre, tt { font-size:10pt; }
+body, td, th { color:#000000; }
+small { font-size:0.85em; }
+
+div.header, div.footer { margin-left: 0em; }
+
+a:link { font-weight:bold; color: #00007f; text-decoration: none; }
+a:visited { font-weight:bold; color: #00007f; text-decoration: none; }
+

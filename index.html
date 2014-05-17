@@ -1,0 +1,214 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+          "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+  <title>luaproc - Multithreading with message passing for Lua</title>
+  <meta http-equiv="content-type" content="text/html;charset=utf-8" />
+  <meta name="description" content="luaproc is a concurrency library for the
+                                    Lua programming language.">
+  <meta name="keywords" content="Lua, luaproc, multithreading, library,
+                                 threads, concurrency, parallelism, message">
+  <link rel="stylesheet" href="style.css" type="text/css">
+</head>
+
+<body>
+
+<div class="header" id="header">
+  <hr>
+  <center>
+  <table summary="luaproc logo">
+    <tr><td align=center><a href="http://www.lua.org">
+    <img width=192 height=192 border=0 alt="luaproc logo" src="luaproc.png">
+    </a></td></tr>
+    <tr><td align=center valign=top>A concurrent programming library for Lua
+    </td></tr>
+  </table>
+  <p class=bar>
+    <a href="#intro">introduction</a> &middot;
+    <a href="#functions">functions</a> &middot;
+    <a href="#refs">references</a> &middot;
+    <a href="#down">download</a> &middot;
+    <a href="#lic">license</a> 
+  </p>
+  </center>
+  <hr>
+</div> <!-- id="header" -->
+
+<h1 id="intro">Introduction</h1>
+
+<p>
+<em>luaproc</em> is a <a href="http://www.lua.org">Lua</a> extension library
+for concurrent programming. This text provides some background information and
+also serves as s reference manual for the library. The library is available
+under the same <a href="http://www.lua.org/copyright.html">
+terms and conditions</a> as the Lua language, the MIT license. The idea is
+that if you can use Lua in a project, you should also be able to use luaproc.
+</p>
+
+<p>
+Lua natively supports cooperative multithreading by means of coroutines.
+However, coroutines in Lua cannot be executed in parallel. <em>luaproc</em>
+overcomes that restriction by building on the proposal and sample
+implementation presented in 
+<a href="http://www.inf.puc-rio.br/~roberto/pil2">Programming in Lua</a>
+(chapter 30). It uses coroutines and multiple independent states in Lua
+to implement <em>Lua processes</em>, which are user threads comprised of
+Lua code that have no shared data. Lua processes are executed by
+<em>workers</em>, which are system threads implemented with POSIX threads
+(pthreads), and thus can run in parallel.
+</p>
+
+<p>
+Communication between Lua processes relies exclusively on message passing.
+Each message can carry a tuple of atomic Lua values (strings, numbers,
+booleans and nil). More complex types must be encoded somehow -- for instance
+by using strings of Lua code that when executed return such a type. Message
+addressing is based on <em>communication channels</em>, which are decoupled
+from Lua processes and must be explicitly created.
+</p>
+
+<p>
+Sending a message is always a synchronous operation, i.e., the send operation
+only returns after a message has been received by another Lua process or if
+an error occurs (such as trying to send a message to a non-existent channel).
+Receiving a message, on the other hand, can be a synchronous or asynchronous
+operation. In synchronous mode, a call to the receive operation only returns
+after a message has been received or if an error occurs. In asynchronous mode,
+a call to the receive operation returns immediately and indicates if a message
+was received or not.
+</p>
+
+<p>
+If a Lua process tries to send a message to a channel where there are no Lua
+processes waiting to receive a message, its execution is suspended until a
+matching receive occurs or the channel is destroyed. The same happens if a
+Lua process tries to synchronously receive a message from a channel where
+there are no Lua processes waiting to send a message.
+</p>
+
+<p>
+luaproc also offers an optional facility to recycle Lua processes. Recycling
+consists of reusing states from finished Lua processes, instead of destroying
+them. When recycling is enabled, a new Lua process can be created by loading
+its code in a previously used state from a finished Lua process, instead of
+creating a new state.
+</p>
+
+<h1 id="functions">Functions</h1>
+
+<h3><a name="fp-newproc"></a><code>luaproc.newproc (code)</code></h3>
+
+Creates a new Lua process to run the specified Lua code string. Returns true
+if successful or nil and an error message if failed. Only the basic standard
+Lua library and luaproc itself are loaded on new Lua processes. The remaining
+standard Lua libraries (io, os, table, string, math and debug) are
+pre-registered and can be loaded with a call to the standard
+Lua function <code>require</code>.
+
+<h3><a name="fp-setnumworkers"></a><code>luaproc.setnumworkers (n)</code></h3>
+
+Sets the number of active workers (pthreads) to n (default = 1, min = 1).
+Creates and destroys workers as needed, depending on the current number of
+active workers.  No return, raises error if worker could not be created. 
+
+<h3><a name="fp-getnumworkers"></a><code>luaproc.getnumworkers ()</code></h3>
+
+Returns the number of active workers (pthreads).
+
+<h3><a name="fp-wait"></a><code>luaproc.wait ()</code></h3>
+
+Waits until all Lua processes have finished, then continues program execution.
+It only makes sense to call this function from the main Lua script. Moreover, 
+this function is implicitly called when the main Lua script finishes executing.
+No return.
+
+<h3><a name="fp-recycle"></a><code>luaproc.recycle (n)</code></h3>
+
+Sets the maximum number of Lua processes to recycle. Returns true if successful
+or nil and an error message if failed. The default number is zero, i.e., no Lua
+processes are recycled.
+
+<h3><a name="fc-send"></a><code>luaproc.send (channel, val1 [, val2, val3, ...])</code></h3>
+
+Sends a message (tuple of boolean, nil, number or string values) to a channel.
+Returns true if successful or nil and an error message if failed. Suspends
+execution of the calling Lua process if there is no matching receive.
+
+<h3><a name="fc-receive"></a><code>luaproc.receive (channel [, async])</code></h3>
+
+Receives a message (tuple of boolean, nil, number or string values) from a
+channel. Returns received values if successful or nil and an error message if
+failed. Suspends execution of the calling Lua process if there is no matching
+receive and the async (boolean) flag is not set. The async flag, by default,
+is not set.
+
+<h3><a name="fc-newchannel"></a><code>luaproc.newchannel (name)</code></h3>
+
+Creates a new channel identified by string name. Returns true if successful or
+nil and an error message if failed.
+
+<h3><a name="fc-delchannel"></a><code>luaproc.delchannel (name)</code></h3>
+
+Destroys a channel identified by string name. Returns true if successful or
+nil and an error message if failed. Lua processes waiting to send or receive
+messages on destroyed channels have their execution resumed and receive
+an error message indicating the channel was destroyed.
+
+<h1 id="refs">References</h1>
+
+<p>
+A paper about luaproc -- <em>Exploring Lua for Concurrent Programming</em> -- 
+was published in the Journal of Universal Computer Science and is available 
+<a href="http://www.jucs.org/jucs_14_21/exploring_lua_for_concurrent">here</a>
+and <a href="http://www.inf.puc-rio.br/~roberto/docs/ry08-05.pdf">here</a>.
+Some information in the paper is already outdated, but it still provides a
+good overview of the library and some of its design choices.
+</p>
+
+<p>
+A tech report about concurrency in Lua, which uses luaproc as part of a case
+study, is also available
+<a href="ftp://ftp.inf.puc-rio.br/pub/docs/techreports/11_13_skyrme.pdf">
+here</a>.
+</p>
+
+<h1 id="down">Download</h1>
+
+GitHub source repository: <a href="https://github.com/askyrme/luaproc">
+https://github.com/askyrme/luaproc
+</a>
+
+<h1 id="lic">License</h1>
+
+<p>
+Copyright &copy; 2008-2014 Alexandre Skyrme, Noemi Rodriguez, 
+Roberto Ierusalimschy. All rights reserved.<br>
+</p>
+
+<p>
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the "Software"),
+to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+</p>
+
+<p>
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+</p>
+
+<p>
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+</p>
+
+</body>
+</html>
